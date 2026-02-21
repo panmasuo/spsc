@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <mutex>
 #include <optional>
 
 template<typename T, std::size_t N>
@@ -14,6 +15,8 @@ struct SpscQueue
         if (this->full()) {
             return false;
         }
+
+        std::lock_guard _{this->lock};
 
         this->queue[this->end_index] = std::forward<T>(item);
 
@@ -29,7 +32,9 @@ struct SpscQueue
             return {};
         }
 
-        const auto item = std::move(this->queue[this->start_index]);
+        std::lock_guard _{this->lock};
+
+        auto item = std::move(this->queue[this->start_index]);
 
         --this->size;
         this->start_index = (this->start_index + 1) % N;
@@ -49,6 +54,8 @@ struct SpscQueue
 
   private:
     QueueType queue{};
+
+    std::mutex lock;
 
     /* Point to the start of the queue, first element. */
     IndexType start_index{};
