@@ -14,54 +14,65 @@ requires PowerOf2<N>
 struct SpscQueue
 {
     using QueueType = std::array<T, N>;
-    using IndexType = std::atomic<decltype(N)>;
+    using IndexType = decltype(N);
+    using AtomicType = std::atomic<IndexType>;
 
+    /**
+     * @brief Push provided item to the queue.
+     *
+     * @param item item to push.
+     * @return true if successful, false if queue is full.
+     */
     [[nodiscard]] auto push(T&& item) noexcept -> bool
     {
-        const auto next = (this->end_index.load(std::memory_order_acquire) + 1) & (N - 1);
+        const auto end = this->end_index.load(std::memory_order_relaxed);
+        const auto next = (end + 1) & (N - 1);
 
-        if (this->full(next)) {
-            return false;
+        if (full(next)) {
+            return {};
         }
 
-        const auto end = this->end_index.load(std::memory_order_acquire);
         this->queue[end] = std::forward<T>(item);
-
         this->end_index.store(next, std::memory_order_release);
 
         return true;
     }
 
+    /**
+     * @brief Pop item from the queue.
+     *
+     * @return Item if successful, nullopt otherwise.
+     */
     [[nodiscard]] auto pop() noexcept -> std::optional<T>
     {
-        if (this->empty()) {
+        const auto start = this->start_index.load(std::memory_order_relaxed);
+
+        if (empty(start)) {
             return {};
         }
 
-        const auto start = this->start_index.load(std::memory_order_acquire);
         auto item = std::move(this->queue[start]);
-
-        this->start_index.store((start + 1) % N, std::memory_order_release);
+        this->start_index.store((start + 1) & (N - 1), std::memory_order_release);
 
         return item;
-    }
-
-    [[nodiscard]] inline auto full(const auto& next) const noexcept -> bool
-    {
-        return next == this->start_index.load(std::memory_order_acquire);
-    }
-
-    [[nodiscard]] inline auto empty() const noexcept -> bool
-    {
-        return this->start_index.load(std::memory_order_acquire) == this->end_index.load(std::memory_order_acquire);
     }
 
   private:
     QueueType queue{};
 
     /* Point to the start of the queue, first element. */
-    alignas(std::hardware_destructive_interference_size) IndexType start_index{};
+    alignas(std::hardware_destructive_interference_size) AtomicType start_index{};
 
     /* Point to the end of the queue, last element. */
-    alignas(std::hardware_destructive_interference_size) IndexType end_index{};
+    alignas(std::hardware_destructive_interference_size) AtomicType end_index{};
+
+    [[nodiscard]] inline auto full(IndexType next_index) const noexcept -> bool
+    {
+        return next_index == this->start_index.load(std::memory_order_acquire);
+    }
+
+    [[nodiscard]] inline auto empty(IndexType start_index) const noexcept -> bool
+    {
+        return start_index == this->end_index.load(std::memory_order_acquire);
+    }
 };

@@ -19,6 +19,9 @@ struct QueueFixture : testing::Test
 using TestTypes= testing::Types<char, int, unsigned int, std::string, std::tuple<int, int>>;
 TYPED_TEST_SUITE(QueueFixture, TestTypes);
 
+/**
+ * @brief Test if full queue will return `false` on pushing.
+ */
 TYPED_TEST(QueueFixture, IfQueueIsFullReturnFalseWhenPush)
 {
     // push to the queue until it is full
@@ -30,12 +33,19 @@ TYPED_TEST(QueueFixture, IfQueueIsFullReturnFalseWhenPush)
     ASSERT_FALSE(this->queue.push({}));
 }
 
+/**
+ * @brief Test if empty queue will return nullopt on popping.
+ */
 TYPED_TEST(QueueFixture, IfQueueIsEmptyReturnNulloptWhenPop)
 {
     // assert calling pop on empty queue will return nullopt (false)
     ASSERT_FALSE(this->queue.pop());
 }
 
+/**
+ * @brief Test if push/pop pair will result with empty queue.
+ *
+ */
 TYPED_TEST(QueueFixture, IfSameNumberOfPushAndPopThenQueueIsEmpty)
 {
     // push and pop one element
@@ -46,6 +56,10 @@ TYPED_TEST(QueueFixture, IfSameNumberOfPushAndPopThenQueueIsEmpty)
     ASSERT_FALSE(this->queue.pop());
 }
 
+/**
+ * @brief Test if pushing double the size of the queue will result with correct order
+ * after popping.
+ */
 TYPED_TEST(QueueFixture, IfMoreElementsThanQueueSizeThenOrderIsSame)
 {
     constexpr auto double_size = QueueFixture<TypeParam>::queue_size * 2;
@@ -54,15 +68,18 @@ TYPED_TEST(QueueFixture, IfMoreElementsThanQueueSizeThenOrderIsSame)
     auto actual_array = std::array<TypeParam, double_size>{};
 
     if constexpr (std::is_arithmetic_v<TypeParam>) {
-        std::iota(actual_array.begin(), actual_array.end(), 0);
+        // just the int range
+        std::ranges::iota(actual_array, 0);
     }
     else if constexpr (std::is_same_v<TypeParam, std::string>) {
+        // int range converted to string
         std::ranges::transform(
             std::views::iota(0, static_cast<int>(double_size)),
             actual_array.begin(), [](int i) -> TypeParam { return std::to_string(i); }
         );
     }
     else if constexpr (std::is_same_v<TypeParam, std::tuple<int, int>>) {
+        // range of pairs of int
         std::ranges::transform(
             std::views::iota(0, static_cast<int>(double_size)),
             actual_array.begin(), [](int i) -> TypeParam { return {i, i}; }
