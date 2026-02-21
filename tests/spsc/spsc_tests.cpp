@@ -11,7 +11,7 @@
 template <typename T>
 struct QueueFixture : testing::Test
 {
-    static constexpr auto queue_size = std::size_t{10};
+    static constexpr auto queue_size = std::size_t{16};
 
     SpscQueue<T, queue_size> queue{};
 };

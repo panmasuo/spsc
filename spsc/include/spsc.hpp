@@ -2,9 +2,15 @@
 
 #include <array>
 #include <atomic>
+#include <bit>
+#include <concepts>
 #include <optional>
 
+template<std::size_t N>
+concept PowerOf2 = (N >= 2 && std::has_single_bit(N));
+
 template<typename T, std::size_t N>
+requires PowerOf2<N>
 struct SpscQueue
 {
     using QueueType = std::array<T, N>;
@@ -12,17 +18,16 @@ struct SpscQueue
 
     [[nodiscard]] auto push(T&& item) noexcept -> bool
     {
-        if (this->full()) {
+        const auto next = (this->end_index.load(std::memory_order_acquire) + 1) & (N - 1);
+
+        if (this->full(next)) {
             return false;
         }
 
         const auto end = this->end_index.load(std::memory_order_acquire);
         this->queue[end] = std::forward<T>(item);
 
-        // item pushed, increase size right away
-        this->size.fetch_add(1, std::memory_order_release);
-
-        this->end_index.store((this->end_index + 1) % N, std::memory_order_release);
+        this->end_index.store(next, std::memory_order_release);
 
         return true;
     }
@@ -36,33 +41,27 @@ struct SpscQueue
         const auto start = this->start_index.load(std::memory_order_acquire);
         auto item = std::move(this->queue[start]);
 
-        // item poped, decerase size right away
-        this->size.fetch_sub(1, std::memory_order_release);
-
         this->start_index.store((start + 1) % N, std::memory_order_release);
 
         return item;
     }
 
-    [[nodiscard]] inline auto empty() const noexcept -> bool
+    [[nodiscard]] inline auto full(const auto& next) const noexcept -> bool
     {
-        return this->size.load(std::memory_order_acquire) == 0;
+        return next == this->start_index.load(std::memory_order_acquire);
     }
 
-    [[nodiscard]] inline auto full() const noexcept -> bool
+    [[nodiscard]] inline auto empty() const noexcept -> bool
     {
-        return this->size.load(std::memory_order_acquire) >= N - 1;
+        return this->start_index.load(std::memory_order_acquire) == this->end_index.load(std::memory_order_acquire);
     }
 
   private:
     QueueType queue{};
 
     /* Point to the start of the queue, first element. */
-    IndexType start_index{};
+    alignas(std::hardware_destructive_interference_size) IndexType start_index{};
 
     /* Point to the end of the queue, last element. */
-    IndexType end_index{};
-
-    /* Count number push/pop. */
-    IndexType size{};
+    alignas(std::hardware_destructive_interference_size) IndexType end_index{};
 };
