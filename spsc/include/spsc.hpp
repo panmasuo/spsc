@@ -16,13 +16,13 @@ struct SpscQueue
             return false;
         }
 
-        const auto end = this->end_index.load();
+        const auto end = this->end_index.load(std::memory_order_acquire);
         this->queue[end] = std::forward<T>(item);
 
         // item pushed, increase size right away
-        this->size.fetch_add(1);
+        this->size.fetch_add(1, std::memory_order_release);
 
-        this->end_index.store((this->end_index + 1) % N);
+        this->end_index.store((this->end_index + 1) % N, std::memory_order_release);
 
         return true;
     }
@@ -33,25 +33,25 @@ struct SpscQueue
             return {};
         }
 
-        const auto start = this->start_index.load();
+        const auto start = this->start_index.load(std::memory_order_acquire);
         auto item = std::move(this->queue[start]);
 
         // item poped, decerase size right away
-        this->size.fetch_sub(1);
+        this->size.fetch_sub(1, std::memory_order_release);
 
-        this->start_index.store((start + 1) % N);
+        this->start_index.store((start + 1) % N, std::memory_order_release);
 
         return item;
     }
 
     [[nodiscard]] inline auto empty() const noexcept -> bool
     {
-        return this->size.load() == 0;
+        return this->size.load(std::memory_order_acquire) == 0;
     }
 
     [[nodiscard]] inline auto full() const noexcept -> bool
     {
-        return this->size.load() >= N - 1;
+        return this->size.load(std::memory_order_acquire) >= N - 1;
     }
 
   private:
