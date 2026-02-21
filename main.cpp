@@ -2,5 +2,7 @@
 
 auto main() -> int
 {
-    return hello("world");
+    SpscQueue<int, 5> queue;
+
+    return {};
 }
