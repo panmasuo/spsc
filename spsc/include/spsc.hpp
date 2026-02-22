@@ -6,6 +6,8 @@
 #include <concepts>
 #include <optional>
 
+inline constexpr auto COHERENCY_LINE_SIZE = std::size_t{64};
+
 template<std::size_t N>
 concept PowerOf2 = (N >= 2 && std::has_single_bit(N));
 
@@ -61,10 +63,10 @@ struct SpscQueue
     QueueType queue{};
 
     /* Point to the start of the queue, first element. */
-    alignas(std::hardware_destructive_interference_size) AtomicType start_index{};
+    alignas(COHERENCY_LINE_SIZE) AtomicType start_index{};
 
     /* Point to the end of the queue, last element. */
-    alignas(std::hardware_destructive_interference_size) AtomicType end_index{};
+    alignas(COHERENCY_LINE_SIZE) AtomicType end_index{};
 
     [[nodiscard]] inline auto full(IndexType next_index) const noexcept -> bool
     {

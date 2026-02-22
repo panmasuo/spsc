@@ -18,7 +18,7 @@ sudo apt install cmake git g++-14
 If `g++ --version` is not returning 14 or 15 by default add it using `CXX` flag.
 
 ```shell
-git clone https://github.com/panmasuo/spsc
+git clone https://github.com/panmasuo/spsc && cd spsc
 CXX=g++-14 cmake --preset default
 cmake --build build
 ```
@@ -48,55 +48,69 @@ Benchmarks prepared using [google benchmark](https://github.com/google/benchmark
 <summary>Benchmark function and settings</summary>
 
 ```c++
-static void WithCacheAlignedAndPowerOf2(benchmark::State& state)
+#include <benchmark/benchmark.h>
+#include <pthread.h>
+
+#include "spsc.hpp"
+
+auto SetAffinity(int core_id)
 {
-    static constexpr auto queue_size = std::size_t{128};
-
-    SpscQueue<int, queue_size> queue{};
-
-    std::jthread consumer([&] (std::stop_token stop) {
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(2, &cpuset);
-        pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
-
-        while (!stop.stop_requested()) {
-            auto item = queue.pop();
-            benchmark::DoNotOptimize(item);
-        }
-    });
-
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
-    CPU_SET(0, &cpuset);
-    pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
-
-    for (auto _ : state) {
-        while (!queue.push(42)) {}
-    }
-
-    state.SetItemsProcessed(state.iterations());
+    CPU_SET(core_id, &cpuset);
+    pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 }
 
-BENCHMARK(WithCacheAlignedAndPowerOf2)
-    ->UseRealTime()
-    ->Unit(benchmark::kMicrosecond)
+struct SPSCFixture : benchmark::Fixture
+{
+    static inline SpscQueue<int, 1024> queue{};
+};
+
+BENCHMARK_DEFINE_F(SPSCFixture, Throughput)(benchmark::State& state) {
+    if (state.thread_index() == 0) {
+        // producer on separate thread and core 0
+        SetAffinity(0);
+
+        int i = 0;
+        for (auto _ : state) {
+            while (!queue.push(int{i})) {
+            }
+            i++;
+        }
+    }
+    else {
+        // consumer on separate thread and core 8
+        SetAffinity(8);
+        for (auto _ : state) {
+            while (!queue.pop()) {
+            }
+        }
+    }
+
+    if (state.thread_index() == 0) {
+        state.SetItemsProcessed(state.iterations());
+    }
+}
+
+BENCHMARK_REGISTER_F(SPSCFixture, Throughput)
+    ->Threads(2)
     ->Iterations(10000000)
-    ->Repetitions(100);
+    ->Repetitions(10)
+    ->DisplayAggregatesOnly(true);
+
+BENCHMARK_MAIN();
 ```
 
 </details>
 
-### Build
-
-Build with `g++ main.cpp -Ispsc/include -std=c++23 -Lbenchmark/build/src -lbenchmark -lpthread -o bench`.
+built with `g++ main.cpp -Ispsc/include -std=c++23 -O3 -march=native -lbenchmark -lpthread -o bench`.
 
 ### Results
 
-| Benchmark                          | Time     | CPU      | Iterations | Items per second            |
-|------------------------------------|----------|----------|------------|-----------------------------|
-| WithMutexLock                      | 0.202 us | 0.201 us | 100        | items_per_second=4.94274M/s |
-| WithAtomic                         | 0.093 us | 0.093 us | 100        | items_per_second=10.7095M/s |
-| WithAtomicsMemoryOrder             | 0.094 us | 0.094 us | 100        | items_per_second=10.6149M/s |
-| WithCacheAlignedAtomicsMemoryOrder | 0.080 us | 0.080 us | 100        | items_per_second=12.4718M/s |
-| WithCacheAlignedAndPowerOf2        | 0.080 us | 0.080 us | 100        | items_per_second=12.5191M/s |
+| Benchmark                          | mean    | stddev   | Items per second |
+| ---------------------------------- | ------- | -------- | ---------------- |
+| WithMutexLock                      | 47.8 ns | 0.483 ns | 20.985M/s        |
+| WithAtomic                         | 69.7 ns | 3.47 ns  | 14.417M/s        |
+| WithAtomicsMemoryOrder             | 10.7 ns | 0.318 ns | 94.2124M/s       |
+| WithCacheAlignedAtomicsMemoryOrder | 7.06 ns | 0.031 ns | 141.978M/s       |
+| WithCacheAlignedAndPowerOf2        | 7.02 ns | 0.060 ns | 142.973M/s       |
