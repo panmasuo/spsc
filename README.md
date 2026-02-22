@@ -4,11 +4,22 @@
 - Queue's capacity is the `size - 1`.
 - If queue is full, new messages are not accepted, and `push()` method will return `false`.
 
+## Prerequities
+
+`CMake` for building and `g++-14`/`g++-15` for `c++23`.
+
+```shell
+// using apt
+sudo apt install cmake git g++-14
+```
+
 ## Build
+
+If `g++ --version` is not returning 14 or 15 by default add it using `CXX` flag.
 
 ```shell
 git clone https://github.com/panmasuo/spsc
-cmake -S . -B build
+CXX=g++-14 cmake --preset default
 cmake --build build
 ```
 

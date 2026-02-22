@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <numeric>
+#include <print>
 #include <ranges>
 #include <thread>
 
@@ -122,4 +123,26 @@ TYPED_TEST(QueueFixture, IfMoreElementsThanQueueSizeThenOrderIsSame)
 
     // assert input array matching created vector
     ASSERT_TRUE(std::ranges::equal(expected_array, result));
+}
+
+/**
+ * @brief Test if queue will reach its capacity before its declared
+ * queue size (size - 1).
+ */
+TYPED_TEST(QueueFixture, IfQueueFullThenCapacityLessThanSize)
+{
+    const auto expected_queue_capacity = QueueFixture<TypeParam>::queue_size - 1;
+    auto i = int{};
+
+    while (i <= QueueFixture<TypeParam>::queue_size) {
+        if (!this->queue.push({})) {
+            // break on first fail - queue is full
+            break;
+        }
+
+        // not full yet
+        ++i;
+    }
+
+    EXPECT_EQ(expected_queue_capacity, i);
 }
