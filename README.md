@@ -61,17 +61,18 @@ auto SetAffinity(int core_id)
     pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 }
 
-struct SPSCFixture : benchmark::Fixture
+struct SpscFixture : benchmark::Fixture
 {
-    static inline SpscQueue<int, 1024> queue{};
+    static constexpr auto queue_size = std::size_t{16};
+    static inline SpscQueue<int, queue_size> queue{};
 };
 
-BENCHMARK_DEFINE_F(SPSCFixture, Throughput)(benchmark::State& state) {
+BENCHMARK_DEFINE_F(SpscFixture, Throughput)(benchmark::State& state) {
     if (state.thread_index() == 0) {
         // producer on separate thread and core 0
         SetAffinity(0);
 
-        int i = 0;
+        auto i = int{};
         for (auto _ : state) {
             while (!queue.push(int{i})) {
             }
@@ -92,7 +93,7 @@ BENCHMARK_DEFINE_F(SPSCFixture, Throughput)(benchmark::State& state) {
     }
 }
 
-BENCHMARK_REGISTER_F(SPSCFixture, Throughput)
+BENCHMARK_REGISTER_F(SpscFixture, Throughput)
     ->Threads(2)
     ->Iterations(10000000)
     ->Repetitions(10)
