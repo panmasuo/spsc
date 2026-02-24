@@ -27,11 +27,11 @@ TYPED_TEST(QueueFixture, IfQueueIsFullReturnFalseWhenPush)
 {
     // push to the queue until it is full
     for (std::size_t i{}; i < QueueFixture<TypeParam>::queue_size; i++) {
-        std::ignore = this->queue.push({});
+        std::ignore = this->queue.push(TypeParam{});
     }
 
     // assert that it is full by calling the push again
-    ASSERT_FALSE(this->queue.push({}));
+    ASSERT_FALSE(this->queue.push(TypeParam{}));
 }
 
 /**
@@ -50,7 +50,7 @@ TYPED_TEST(QueueFixture, IfQueueIsEmptyReturnNulloptWhenPop)
 TYPED_TEST(QueueFixture, IfSameNumberOfPushAndPopThenQueueIsEmpty)
 {
     // push and pop one element
-    std::ignore = this->queue.push({});
+    std::ignore = this->queue.push(TypeParam{});
     std::ignore = this->queue.pop();
 
     // assert queue is empty
@@ -135,7 +135,7 @@ TYPED_TEST(QueueFixture, IfQueueFullThenCapacityLessThanSize)
     auto i = int{};
 
     while (i <= QueueFixture<TypeParam>::queue_size) {
-        if (!this->queue.push({})) {
+        if (!this->queue.push(TypeParam{})) {
             // break on first fail - queue is full
             break;
         }

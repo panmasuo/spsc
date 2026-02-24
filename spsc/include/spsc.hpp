@@ -11,8 +11,11 @@ inline constexpr auto COHERENCY_LINE_SIZE = std::size_t{64};
 template<std::size_t N>
 concept PowerOf2 = (N >= 2 && std::has_single_bit(N));
 
+template<typename T, typename U>
+concept IsSame = std::same_as<std::remove_cvref_t<U>, T>;
+
 template<typename T, std::size_t N>
-requires PowerOf2<N>
+    requires PowerOf2<N>
 struct SpscQueue
 {
     using QueueType = std::array<T, N>;
@@ -25,7 +28,9 @@ struct SpscQueue
      * @param item item to push.
      * @return true if successful, false if queue is full.
      */
-    [[nodiscard]] auto push(T&& item) noexcept -> bool
+    template<typename U>
+        requires IsSame<T, U>
+    [[nodiscard]] auto push(U&& item) noexcept -> bool
     {
         const auto end = this->end_index.load(std::memory_order_relaxed);
         const auto next = (end + 1) & (N - 1);
@@ -34,7 +39,7 @@ struct SpscQueue
             return {};
         }
 
-        this->queue[end] = std::forward<T>(item);
+        this->queue[end] = std::forward<U>(item);
         this->end_index.store(next, std::memory_order_release);
 
         return true;
@@ -53,7 +58,7 @@ struct SpscQueue
             return {};
         }
 
-        auto item = std::move(this->queue[start]);
+        auto item = std::optional{std::move_if_noexcept(this->queue[start])};
         this->start_index.store((start + 1) & (N - 1), std::memory_order_release);
 
         return item;
